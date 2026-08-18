@@ -1,32 +1,25 @@
-# GJ Store App
+# GJ Store Flutter App
 
-Flutter mobile client for the GJ Plugin Store WordPress API.
+Android-first Flutter application for the GJ Plugin Store.
 
-## Current architecture
-- Home: banners, categories, products
-- Store: search and product grid
-- Product details
-- Cart/Buy UI foundation
-- Account/login foundation
-- Orders/licenses/downloads navigation foundation
-- Notifications API screen
-- Shared preferences token storage
-- Central API service
-- GitHub Actions release APK build
-- Workflow regenerates missing Flutter/Android wrapper files and patches AGP/Kotlin versions.
+## GitHub APK build
 
-## API
-Default:
-`https://gehendrajung.com.np/wp-json/gjps/v1`
+1. Push the complete project to the repository root.
+2. Open **Actions**.
+3. Select **Build GJ Store APK**.
+4. Click **Run workflow**.
+5. When the run succeeds, download **GJ-Store-App-release** from Artifacts.
 
-Before production, verify the installed GJ Plugin Store API response/request schema for:
-auth, checkout, payment submission, orders, licenses, downloads, notifications and wishlist.
+The workflow automatically supplies missing Android Gradle wrapper/platform files when needed and uses:
+- Flutter 3.35.0
+- Android Gradle Plugin 8.9.1
+- Kotlin 2.1.0
+- Gradle 8.11.1
+- Java 17
 
-## GitHub APK
-Push to `main` or use Actions → Build GJ Store APK → Run workflow.
-The workflow produces `GJ-Store-App-APK`.
+## Local build
 
-## Local
-`flutter pub get`
-`flutter run`
-`flutter build apk --release`
+```bash
+flutter pub get
+flutter build apk --release
+```
