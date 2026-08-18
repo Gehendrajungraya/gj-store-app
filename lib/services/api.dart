@@ -1,7 +1,4 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,10 +8,6 @@ import '../models/banner_model.dart';
 import '../models/category.dart';
 
 class ApiService {
-  static final http.Client _client = http.Client();
-
-  static const Duration _timeout = Duration(seconds: 20);
-
   static Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Accept': 'application/json',
@@ -34,38 +27,41 @@ class ApiService {
   }
 
   static Uri _uri(String path) {
-    final cleanBase = AppConfig.apiBase.replaceAll(RegExp(r'/$'), '');
+    final base = AppConfig.apiBase.replaceAll(RegExp(r'/$'), '');
     final cleanPath = path.startsWith('/') ? path : '/$path';
 
-    return Uri.parse('$cleanBase$cleanPath');
+    return Uri.parse('$base$cleanPath');
   }
 
   static Future<dynamic> get(String path) async {
-    final uri = _uri(path);
-
     try {
-      final response = await _client
+      final uri = _uri(path);
+
+      final response = await http
           .get(
             uri,
             headers: await _headers(),
           )
-          .timeout(_timeout);
+          .timeout(const Duration(seconds: 30));
 
-      return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw NetworkException(
-        'Internet connection or DNS problem. Please check your network.',
-        e,
-      );
-    } on TimeoutException catch (e) {
-      throw NetworkException(
-        'The server took too long to respond. Please try again.',
-        e,
-      );
-    } on http.ClientException catch (e) {
-      throw NetworkException(
-        'Unable to connect to the server.',
-        e,
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      if (response.body.trim().isEmpty) {
+        return {};
+      }
+
+      return jsonDecode(response.body);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        0,
+        'Network error: $e',
       );
     }
   }
@@ -74,54 +70,35 @@ class ApiService {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final uri = _uri(path);
-
     try {
-      final response = await _client
+      final uri = _uri(path);
+
+      final response = await http
           .post(
             uri,
             headers: await _headers(),
             body: jsonEncode(body),
           )
-          .timeout(_timeout);
+          .timeout(const Duration(seconds: 30));
 
-      return _handleResponse(response);
-    } on SocketException catch (e) {
-      throw NetworkException(
-        'Internet connection or DNS problem. Please check your network.',
-        e,
-      );
-    } on TimeoutException catch (e) {
-      throw NetworkException(
-        'The server took too long to respond. Please try again.',
-        e,
-      );
-    } on http.ClientException catch (e) {
-      throw NetworkException(
-        'Unable to connect to the server.',
-        e,
-      );
-    }
-  }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          response.statusCode,
+          response.body,
+        );
+      }
 
-  static dynamic _handleResponse(http.Response response) {
-    final status = response.statusCode;
-    final body = response.body;
+      if (response.body.trim().isEmpty) {
+        return {};
+      }
 
-    if (status < 200 || status >= 300) {
-      throw ApiException(status, body);
-    }
-
-    if (body.trim().isEmpty) {
-      return {};
-    }
-
-    try {
-      return jsonDecode(body);
-    } on FormatException catch (e) {
+      return jsonDecode(response.body);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
       throw ApiException(
-        status,
-        'Invalid JSON response from server: $e',
+        0,
+        'Network error: $e',
       );
     }
   }
@@ -134,16 +111,18 @@ class ApiService {
       return data;
     }
 
-    if (data is Map && data[key] is List) {
-      return data[key] as List;
-    }
+    if (data is Map) {
+      if (data[key] is List) {
+        return data[key] as List;
+      }
 
-    if (data is Map && data['data'] is List) {
-      return data['data'] as List;
-    }
+      if (data['items'] is List) {
+        return data['items'] as List;
+      }
 
-    if (data is Map && data['items'] is List) {
-      return data['items'] as List;
+      if (data['data'] is List) {
+        return data['data'] as List;
+      }
     }
 
     return const [];
@@ -153,29 +132,28 @@ class ApiService {
     String search = '',
     int? categoryId,
   }) async {
-    final query = <String, String>{};
+    final params = <String, String>{};
 
     if (search.trim().isNotEmpty) {
-      query['search'] = search.trim();
+      params['search'] = search.trim();
     }
 
     if (categoryId != null) {
-      query['category'] = categoryId.toString();
+      params['category'] = categoryId.toString();
     }
 
-    final queryString = query.isEmpty
+    final query = params.isEmpty
         ? ''
-        : '?${query.entries.map((entry) {
-            return '${Uri.encodeQueryComponent(entry.key)}='
-                '${Uri.encodeQueryComponent(entry.value)}';
-          }).join('&')}';
+        : '?${Uri(
+            queryParameters: params,
+          ).query}';
 
-    final data = await get('/products$queryString');
+    final data = await get('/products$query');
 
     return _list(data, 'products')
         .map(
-          (item) => Product.fromJson(
-            Map<String, dynamic>.from(item),
+          (e) => Product.fromJson(
+            Map<String, dynamic>.from(e),
           ),
         )
         .toList();
@@ -186,8 +164,8 @@ class ApiService {
 
     return _list(data, 'banners')
         .map(
-          (item) => StoreBanner.fromJson(
-            Map<String, dynamic>.from(item),
+          (e) => StoreBanner.fromJson(
+            Map<String, dynamic>.from(e),
           ),
         )
         .toList();
@@ -198,8 +176,8 @@ class ApiService {
 
     return _list(data, 'categories')
         .map(
-          (item) => StoreCategory.fromJson(
-            Map<String, dynamic>.from(item),
+          (e) => StoreCategory.fromJson(
+            Map<String, dynamic>.from(e),
           ),
         )
         .toList();
@@ -209,15 +187,15 @@ class ApiService {
     String email,
     String password,
   ) async {
-    return Map<String, dynamic>.from(
-      await post(
-        '/auth/login',
-        {
-          'email': email,
-          'password': password,
-        },
-      ),
+    final data = await post(
+      '/auth/login',
+      {
+        'email': email,
+        'password': password,
+      },
     );
+
+    return Map<String, dynamic>.from(data);
   }
 
   static Future<Map<String, dynamic>> register(
@@ -225,36 +203,40 @@ class ApiService {
     String email,
     String password,
   ) async {
-    return Map<String, dynamic>.from(
-      await post(
-        '/auth/register',
-        {
-          'name': name,
-          'email': email,
-          'password': password,
-        },
-      ),
+    final data = await post(
+      '/auth/register',
+      {
+        'name': name,
+        'email': email,
+        'password': password,
+      },
     );
+
+    return Map<String, dynamic>.from(data);
   }
 
-  static Future<dynamic> orders() => get('/orders');
+  static Future<dynamic> orders() {
+    return get('/orders');
+  }
 
-  static Future<dynamic> licenses() => get('/licenses');
+  static Future<dynamic> licenses() {
+    return get('/licenses');
+  }
 
-  static Future<dynamic> notifications() => get('/notifications');
+  static Future<dynamic> notifications() {
+    return get('/notifications');
+  }
 
-  static Future<dynamic> wishlist() => get('/wishlist');
+  static Future<dynamic> wishlist() {
+    return get('/wishlist');
+  }
 
   static Future<Map<String, dynamic>> checkout(
     Map<String, dynamic> body,
   ) async {
-    return Map<String, dynamic>.from(
-      await post('/checkout', body),
-    );
-  }
+    final data = await post('/checkout', body);
 
-  static void dispose() {
-    _client.close();
+    return Map<String, dynamic>.from(data);
   }
 }
 
@@ -262,18 +244,17 @@ class ApiException implements Exception {
   final int status;
   final String body;
 
-  ApiException(this.status, this.body);
+  ApiException(
+    this.status,
+    this.body,
+  );
 
   @override
-  String toString() => 'API error $status: $body';
-}
+  String toString() {
+    if (status == 0) {
+      return body;
+    }
 
-class NetworkException implements Exception {
-  final String message;
-  final Object? cause;
-
-  NetworkException(this.message, [this.cause]);
-
-  @override
-  String toString() => message;
+    return 'API error $status: $body';
+  }
 }
