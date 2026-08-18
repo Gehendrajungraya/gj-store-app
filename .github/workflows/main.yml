@@ -1,0 +1,163 @@
+name: Build GJ Store APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout source code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Java 17
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # 3. Setup Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.0'
+          channel: stable
+          cache: true
+
+      # 4. Check Flutter
+      - name: Flutter Doctor
+        run: flutter doctor -v
+
+      # 5. Generate missing Android platform files
+      - name: Restore missing Android project files
+        shell: bash
+        run: |
+          set -e
+
+          if [ ! -f "android/gradlew" ] || \
+             [ ! -f "android/gradle/wrapper/gradle-wrapper.jar" ] || \
+             [ ! -f "android/gradle/wrapper/gradle-wrapper.properties" ]; then
+
+            echo "Android Gradle wrapper is missing."
+            echo "Generating Android platform files..."
+
+            mkdir -p /tmp/gj_flutter_base
+
+            flutter create \
+              --platforms=android \
+              --org com.gehendra \
+              --project-name gj_store_app \
+              /tmp/gj_flutter_base
+
+            cp -R /tmp/gj_flutter_base/android/. android/
+
+            echo "Android platform files restored."
+          else
+            echo "Android Gradle wrapper already exists."
+          fi
+
+      # 6. Fix Android Gradle Plugin + Kotlin versions
+      - name: Configure Android Gradle versions
+        shell: bash
+        run: |
+          set -e
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = Path("android/settings.gradle")
+
+          if settings.exists():
+              text = settings.read_text()
+
+              text = re.sub(
+                  r'(id\s+"com\.android\.application"\s+version\s+")[^"]+(")',
+                  r'\g<1>8.9.1\g<2>',
+                  text
+              )
+
+              text = re.sub(
+                  r'(id\s+"org\.jetbrains\.kotlin\.android"\s+version\s+")[^"]+(")',
+                  r'\g<1>2.1.0\g<2>',
+                  text
+              )
+
+              settings.write_text(text)
+
+          wrapper = Path(
+              "android/gradle/wrapper/gradle-wrapper.properties"
+          )
+
+          if wrapper.exists():
+              text = wrapper.read_text()
+
+              text = re.sub(
+                  r'^distributionUrl=.*$',
+                  r'distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-all.zip',
+                  text,
+                  flags=re.MULTILINE
+              )
+
+              wrapper.write_text(text)
+          PY
+
+      # 7. Make Gradle executable
+      - name: Fix Gradle permissions
+        run: |
+          chmod +x android/gradlew
+
+      # 8. Get Flutter packages
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 9. Analyze project
+      - name: Flutter analyze
+        run: flutter analyze
+        continue-on-error: true
+
+      # 10. Run tests
+      - name: Flutter tests
+        run: flutter test
+        continue-on-error: true
+
+      # 11. Clean previous build
+      - name: Flutter clean
+        run: flutter clean
+
+      # 12. Get dependencies again
+      - name: Flutter pub get after clean
+        run: flutter pub get
+
+      # 13. Build release APK
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      # 14. Rename APK
+      - name: Prepare APK
+        shell: bash
+        run: |
+          mkdir -p release
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             release/GJ-Store-App.apk
+
+      # 15. Upload APK
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GJ-Store-App-Release
+          path: release/GJ-Store-App.apk
+          if-no-files-found: error
+          retention-days: 30
