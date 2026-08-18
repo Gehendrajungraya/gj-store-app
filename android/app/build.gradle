@@ -8,6 +8,7 @@ android {
     namespace = "com.gehendra.gj_store_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
     defaultConfig {
         applicationId = "com.gehendra.gj_store_app"
         minSdk = flutter.minSdkVersion
@@ -15,6 +16,21 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
-flutter { source = "../.." }
+kotlin {
+    jvmToolchain(17)
+}
+
+flutter {
+    source = "../.."
+}
