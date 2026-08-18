@@ -1,20 +1,70 @@
 class Product {
   final int id;
-  final String title;
+  final String name;
+  final String slug;
   final String description;
-  final String image;
   final String price;
+  final String imageUrl;
+  final String version;
+  final int categoryId;
+  final String createdAt;
+  final String updatedAt;
   final String url;
 
-  Product({required this.id, required this.title, required this.description,
-      required this.image, required this.price, required this.url});
+  Product({
+    required this.id,
+    required this.name,
+    required this.slug,
+    required this.description,
+    required this.price,
+    required this.imageUrl,
+    required this.version,
+    required this.categoryId,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.url,
+  });
 
-  factory Product.fromJson(Map<String,dynamic> j) => Product(
-    id: int.tryParse('${j['id']}') ?? 0,
-    title: '${j['title'] ?? j['name'] ?? ''}',
-    description: '${j['description'] ?? ''}',
-    image: '${j['image'] ?? j['featured_image'] ?? ''}',
-    price: '${j['price'] ?? ''}',
-    url: '${j['url'] ?? ''}',
-  );
+  // Backward compatibility getters
+  String get title => name;
+  String get image => imageUrl;
+
+  factory Product.fromJson(Map<String, dynamic> j) {
+    int parsedId = 0;
+    if (j['id'] != null) {
+      if (j['id'] is int) {
+        parsedId = j['id'];
+      } else {
+        parsedId = int.tryParse(j['id'].toString()) ?? 0;
+      }
+    }
+
+    int parsedCategoryId = 0;
+    if (j['category_id'] != null) {
+      if (j['category_id'] is int) {
+        parsedCategoryId = j['category_id'];
+      } else {
+        parsedCategoryId = int.tryParse(j['category_id'].toString()) ?? 0;
+      }
+    }
+
+    String parsedPrice = '';
+    if (j['price'] != null) {
+      parsedPrice = j['price'].toString();
+    }
+
+    return Product(
+      id: parsedId,
+      name: '${j['name'] ?? j['title'] ?? ''}',
+      slug: '${j['slug'] ?? ''}',
+      description: '${j['description'] ?? ''}',
+      price: parsedPrice,
+      imageUrl: '${j['image_url'] ?? j['image'] ?? j['featured_image'] ?? ''}',
+      version: '${j['version'] ?? ''}',
+      categoryId: parsedCategoryId,
+      createdAt: '${j['created_at'] ?? ''}',
+      updatedAt: '${j['updated_at'] ?? ''}',
+      url: '${j['url'] ?? ''}',
+    );
+  }
 }
