@@ -1,0 +1,95 @@
+name: Build Android APK
+
+'on':
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore missing Gradle wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f android/gradlew || ! -f android/gradle/wrapper/gradle-wrapper.jar || ! -f android/gradle/wrapper/gradle-wrapper.properties ]]; then
+            rm -rf /tmp/flutter_android
+            flutter create --platforms=android --org com.gehendra --project-name gj_store_app /tmp/flutter_android
+            cp /tmp/flutter_android/gradlew android/gradlew
+            cp /tmp/flutter_android/gradlew.bat android/gradlew.bat
+            mkdir -p android/gradle
+            cp -R /tmp/flutter_android/gradle/wrapper android/gradle/
+          fi
+
+          chmod +x android/gradlew
+
+      - name: Configure release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          [[ -n "$KEYSTORE_BASE64" ]] || { echo "KEYSTORE_BASE64 secret is required"; exit 1; }
+          [[ -n "$KEYSTORE_PASSWORD" ]] || { echo "KEYSTORE_PASSWORD secret is required"; exit 1; }
+          [[ -n "$KEY_ALIAS" ]] || { echo "KEY_ALIAS secret is required"; exit 1; }
+          [[ -n "$KEY_PASSWORD" ]] || { echo "KEY_PASSWORD secret is required"; exit 1; }
+
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/gj-store-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=gj-store-release.jks
+          EOF
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GJ-Store-App-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
