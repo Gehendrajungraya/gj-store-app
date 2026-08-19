@@ -39,8 +39,8 @@ jobs:
           if [[ ! -f android/gradlew || ! -f android/gradle/wrapper/gradle-wrapper.jar || ! -f android/gradle/wrapper/gradle-wrapper.properties ]]; then
             rm -rf /tmp/flutter_android
             flutter create --platforms=android --org com.gehendra --project-name gj_store_app /tmp/flutter_android
-            cp /tmp/flutter_android/gradlew android/gradlew
-            cp /tmp/flutter_android/gradlew.bat android/gradlew.bat
+            cp /tmp/flutter_android/android/gradlew android/gradlew
+            cp /tmp/flutter_android/android/gradlew.bat android/gradlew.bat
             mkdir -p android/gradle
             cp -R /tmp/flutter_android/gradle/wrapper android/gradle/
           fi
