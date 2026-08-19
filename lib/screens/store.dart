@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/product.dart';
@@ -45,7 +46,7 @@ class _StoreScreenState extends State<StoreScreen> {
         });
       }
     } catch (error) {
-      debugPrint('Store load failed: $error');
+      if (kDebugMode) debugPrint('Store load failed: $error');
       if (mounted) {
         setState(() {
           _errorMessage = _friendlyMessage(error);
@@ -56,7 +57,44 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   String _friendlyMessage(Object error) {
+    if (error is ApiException) {
+      if (error.isCloudflare) {
+        return 'The store request was blocked or failed at the Cloudflare/server layer. Please try again later.';
+      }
+
+      switch (error.status) {
+        case 401:
+          return 'Please log in to access the store.';
+        case 403:
+          return 'You do not have permission to access the store.';
+        case 404:
+          return 'The store API endpoint could not be found. Please try again later.';
+        case 422:
+          return 'The store request was not valid. Please adjust your search and try again.';
+        case 429:
+          return 'The store is receiving too many requests. Please wait a moment and retry.';
+        case 500:
+          return 'The store backend encountered an error. Please try again later.';
+        case 502:
+        case 503:
+        case 504:
+        case 520:
+        case 521:
+        case 522:
+        case 523:
+        case 524:
+        case 525:
+        case 526:
+          return 'The store server is temporarily unavailable. Please try again later.';
+        default:
+          return 'Request failed (${error.status}). Please try again.';
+      }
+    }
+
     final text = error.toString().toLowerCase();
+    if (text.contains('certificate_verify_failed') || text.contains('handshake')) {
+      return 'Secure connection with the store server failed. Please try again later.';
+    }
     if (text.contains('socketexception') || text.contains('failed host lookup') || text.contains('clientexception')) {
       return 'Unable to connect to the server. Please check your internet connection.';
     }

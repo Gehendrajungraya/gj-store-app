@@ -1,9 +1,9 @@
 class AppConfig {
   static const String baseUrl = 'https://gehendrajung.com.np';
-  static const String apiBase = '$baseUrl/wp-json/gj/v1';
+  static const String apiBase = '$baseUrl/api/v1';
   static const String appName = 'GJ Store';
 
-  // There is no verified WordPress auth endpoint exposed for this site.
+  // There is no verified production auth endpoint exposed for this site.
   // Keep auth disabled until the production API confirms a valid login/register route.
   static const bool authEnabled = false;
   static const String? loginPath = null;
@@ -12,6 +12,6 @@ class AppConfig {
   static const String authTokenKey = 'auth_token';
   static const String userNameKey = 'user_name';
 
-  // Keep false until your production API is confirmed to require a token.
-  static const bool useBearerToken = false;
+  // Public requests remain unauthenticated when no stored token exists.
+  static const bool useBearerToken = true;
 }

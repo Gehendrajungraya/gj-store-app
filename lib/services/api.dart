@@ -23,8 +23,9 @@ class FriendlyException implements Exception {
 class ApiException implements Exception {
   final int status;
   final String body;
+  final bool isCloudflare;
 
-  ApiException(this.status, this.body);
+  ApiException(this.status, this.body, {this.isCloudflare = false});
 
   @override
   String toString() {
@@ -38,6 +39,7 @@ class ApiException implements Exception {
 
 class ApiService {
   static void _logRequest(String method, Uri uri, {bool logBody = false}) {
+    if (!kDebugMode) return;
     debugPrint('API $method $uri');
     if (logBody) {
       debugPrint('API $method request body: [not logged for security reasons]');
@@ -45,6 +47,7 @@ class ApiService {
   }
 
   static void _logResponse(String method, Uri uri, int statusCode, String body) {
+    if (!kDebugMode) return;
     debugPrint('API $method $uri -> $statusCode');
 
     if (uri.path.contains('/auth/') || uri.path.contains('/login') || uri.path.contains('/register')) {
@@ -129,6 +132,10 @@ class ApiService {
 
     final uri = Uri.tryParse(normalized);
     if (uri != null && uri.isAbsolute) {
+      final baseHost = Uri.parse(AppConfig.baseUrl).host;
+      if (uri.scheme == 'http' && uri.host == baseHost) {
+        return uri.replace(scheme: 'https').toString();
+      }
       return uri.toString();
     }
 
@@ -165,7 +172,7 @@ class ApiService {
     String fallback = 'Something went wrong. Please try again.',
   }) {
     final text = error.toString().toLowerCase();
-    debugPrint('API error: $error');
+    if (kDebugMode) debugPrint('API error: $error');
 
     if (error is FriendlyException) return error.message;
     if (error is ApiException) return 'Request failed (${error.status}). Please try again.';
@@ -222,6 +229,8 @@ class ApiService {
         throw ApiException(
           response.statusCode,
           response.body,
+          isCloudflare: response.headers['server']?.toLowerCase() == 'cloudflare' ||
+              response.body.toLowerCase().contains('cloudflare'),
         );
       }
 
@@ -229,9 +238,10 @@ class ApiService {
         return {};
       }
 
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      return decoded is Map || decoded is List ? decoded : <String, dynamic>{};
     } on HandshakeException catch (_) {
-      debugPrint('API handshake failure for GET ${_uri(path)}');
+      if (kDebugMode) debugPrint('API handshake failure for GET ${_uri(path)}');
       throw FriendlyException('Secure connection with the store server failed. Please try again later.');
     } on SocketException {
       throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
@@ -275,6 +285,8 @@ class ApiService {
         throw ApiException(
           response.statusCode,
           response.body,
+          isCloudflare: response.headers['server']?.toLowerCase() == 'cloudflare' ||
+              response.body.toLowerCase().contains('cloudflare'),
         );
       }
 
@@ -282,9 +294,10 @@ class ApiService {
         return {};
       }
 
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      return decoded is Map || decoded is List ? decoded : <String, dynamic>{};
     } on HandshakeException catch (_) {
-      debugPrint('API handshake failure for POST ${_uri(path)}');
+      if (kDebugMode) debugPrint('API handshake failure for POST ${_uri(path)}');
       throw FriendlyException('Secure connection with the store server failed. Please try again later.');
     } on SocketException {
       throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
@@ -320,6 +333,12 @@ class ApiService {
           if (innerData[candidate] is List) {
             return innerData[candidate] as List;
           }
+        }
+      }
+
+      for (final candidate in ['results', 'records']) {
+        if (data[candidate] is List) {
+          return data[candidate] as List;
         }
       }
     }
