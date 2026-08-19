@@ -6,6 +6,7 @@ import '../models/category.dart';
 import '../models/product.dart';
 import '../services/api.dart';
 import '../widgets/product_card.dart';
+import 'notifications.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,7 +50,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         ApiService.banners(),
         ApiService.categories(),
-        ApiService.products(search: _searchQuery, categoryId: _selectedCategoryId),
+        ApiService.products(
+            search: _searchQuery, categoryId: _selectedCategoryId),
       ]);
 
       var bannersList = results[0] as List<StoreBanner>;
@@ -85,7 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _friendlyMessage(Object error) {
     final text = error.toString().toLowerCase();
-    if (text.contains('socketexception') || text.contains('failed host lookup') || text.contains('clientexception')) {
+    if (text.contains('socketexception') ||
+        text.contains('failed host lookup') ||
+        text.contains('clientexception')) {
       return 'Unable to connect to the server. Please check your internet connection.';
     }
     if (text.contains('timeout')) {
@@ -108,7 +112,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final productsList = await ApiService.products(search: _searchQuery, categoryId: _selectedCategoryId);
+      final productsList = await ApiService.products(
+          search: _searchQuery, categoryId: _selectedCategoryId);
       if (mounted) {
         setState(() {
           _products = productsList;
@@ -146,7 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (url.isEmpty) {
       return Container(
         color: Colors.deepPurple.shade100,
-        child: const Icon(Icons.image_not_supported, size: 50, color: Colors.white),
+        child: const Icon(Icons.image_not_supported,
+            size: 50, color: Colors.white),
       );
     }
     return Image.network(
@@ -176,11 +182,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Expanded(
                   child: Text(
                     'GJ STORE',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.deepPurple),
+                    style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.deepPurple),
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen())),
                   icon: const Icon(Icons.notifications_none, size: 28),
                 )
               ],
@@ -227,12 +239,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Column(
                     children: [
-                      Icon(Icons.error_outline, size: 60, color: Colors.red.shade400),
+                      Icon(Icons.error_outline,
+                          size: 60, color: Colors.red.shade400),
                       const SizedBox(height: 12),
                       Text(
                         _errorMessage!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, color: Colors.black87),
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.black87),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
@@ -242,14 +256,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ] else if (_isLoading && _banners.isEmpty && _categories.isEmpty && _products.isEmpty) ...[
+            ] else if (_isLoading &&
+                _banners.isEmpty &&
+                _categories.isEmpty &&
+                _products.isEmpty) ...[
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 60),
@@ -280,17 +298,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    colors: [Colors.transparent, Colors.black87],
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black87
+                                    ],
                                   ),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Expanded(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             banner.title,
@@ -316,13 +339,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(width: 8),
                                     if (banner.buttonText.isNotEmpty)
                                       ElevatedButton(
-                                        onPressed: () => _launchUrl(banner.actionUrl),
+                                        onPressed: () =>
+                                            _launchUrl(banner.actionUrl),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.deepPurple,
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 8),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                         ),
                                         child: Text(banner.buttonText),
@@ -343,7 +369,10 @@ class _HomeScreenState extends State<HomeScreen> {
               // Categories
               const Text(
                 'Categories',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
               const SizedBox(height: 10),
               SizedBox(
@@ -363,19 +392,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           _filterProductsOnly();
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
                           decoration: BoxDecoration(
-                            color: isSelected ? Colors.deepPurple : Colors.white,
+                            color:
+                                isSelected ? Colors.deepPurple : Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isSelected ? Colors.deepPurple : Colors.grey.shade300,
+                              color: isSelected
+                                  ? Colors.deepPurple
+                                  : Colors.grey.shade300,
                             ),
                           ),
                           child: Center(
                             child: Text(
                               'All',
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
+                                color:
+                                    isSelected ? Colors.white : Colors.black87,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -394,12 +428,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         _filterProductsOnly();
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 12),
                         decoration: BoxDecoration(
                           color: isSelected ? Colors.deepPurple : Colors.white,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected ? Colors.deepPurple : Colors.grey.shade300,
+                            color: isSelected
+                                ? Colors.deepPurple
+                                : Colors.grey.shade300,
                           ),
                         ),
                         child: Center(
@@ -424,7 +461,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Text(
                     'Featured / Latest',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87),
                   ),
                   if (_isLoading)
                     const SizedBox(
@@ -442,7 +482,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 40),
                     child: Column(
                       children: [
-                        Icon(Icons.category_outlined, size: 50, color: Colors.grey.shade400),
+                        Icon(Icons.category_outlined,
+                            size: 50, color: Colors.grey.shade400),
                         const SizedBox(height: 8),
                         const Text(
                           'No products found matching the criteria.',
@@ -463,7 +504,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisSpacing: 12,
                     childAspectRatio: .72,
                   ),
-                  itemBuilder: (context, index) => ProductCard(product: _products[index]),
+                  itemBuilder: (context, index) =>
+                      ProductCard(product: _products[index]),
                 ),
             ],
           ],

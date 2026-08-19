@@ -10,6 +10,10 @@ class Product {
   final String createdAt;
   final String updatedAt;
   final String url;
+  final String oldPrice;
+  final double? rating;
+  final int? reviewCount;
+  final int? stock;
 
   Product({
     required this.id,
@@ -23,6 +27,10 @@ class Product {
     required this.createdAt,
     required this.updatedAt,
     required this.url,
+    this.oldPrice = '',
+    this.rating,
+    this.reviewCount,
+    this.stock,
   });
 
   // Backward compatibility getters
@@ -65,6 +73,21 @@ class Product {
       createdAt: '${j['created_at'] ?? ''}',
       updatedAt: '${j['updated_at'] ?? ''}',
       url: '${j['url'] ?? ''}',
+      oldPrice:
+          '${j['old_price'] ?? j['compare_at_price'] ?? j['regular_price'] ?? ''}',
+      rating: _doubleValue(j['rating'] ?? j['average_rating']),
+      reviewCount: _intValue(j['review_count'] ?? j['reviews_count']),
+      stock: _intValue(j['stock'] ?? j['stock_quantity'] ?? j['quantity']),
     );
+  }
+
+  static int? _intValue(dynamic value) {
+    if (value == null) return null;
+    return value is int ? value : int.tryParse(value.toString());
+  }
+
+  static double? _doubleValue(dynamic value) {
+    if (value == null) return null;
+    return value is num ? value.toDouble() : double.tryParse(value.toString());
   }
 }

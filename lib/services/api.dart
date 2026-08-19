@@ -38,6 +38,8 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  static const _timeout = Duration(seconds: 30);
+  static final http.Client _client = http.Client();
   static void _logRequest(String method, Uri uri, {bool logBody = false}) {
     if (!kDebugMode) return;
     debugPrint('API $method $uri');
@@ -46,12 +48,16 @@ class ApiService {
     }
   }
 
-  static void _logResponse(String method, Uri uri, int statusCode, String body) {
+  static void _logResponse(
+      String method, Uri uri, int statusCode, String body) {
     if (!kDebugMode) return;
     debugPrint('API $method $uri -> $statusCode');
 
-    if (uri.path.contains('/auth/') || uri.path.contains('/login') || uri.path.contains('/register')) {
-      debugPrint('API $method auth response: [redacted to avoid logging credentials or tokens]');
+    if (uri.path.contains('/auth/') ||
+        uri.path.contains('/login') ||
+        uri.path.contains('/register')) {
+      debugPrint(
+          'API $method auth response: [redacted to avoid logging credentials or tokens]');
       return;
     }
 
@@ -61,7 +67,9 @@ class ApiService {
       return;
     }
 
-    final safeBody = preview.length > 1200 ? '${preview.substring(0, 1200)}... (truncated)' : preview;
+    final safeBody = preview.length > 1200
+        ? '${preview.substring(0, 1200)}... (truncated)'
+        : preview;
     debugPrint('API $method response body: $safeBody');
   }
 
@@ -99,7 +107,15 @@ class ApiService {
     }
 
     if (value is Map) {
-      for (final key in ['url', 'src', 'image', 'full', 'large', 'medium', 'thumbnail']) {
+      for (final key in [
+        'url',
+        'src',
+        'image',
+        'full',
+        'large',
+        'medium',
+        'thumbnail'
+      ]) {
         final candidate = value[key];
         if (candidate != null && candidate.toString().trim().isNotEmpty) {
           return candidate.toString();
@@ -175,7 +191,8 @@ class ApiService {
     if (kDebugMode) debugPrint('API error: $error');
 
     if (error is FriendlyException) return error.message;
-    if (error is ApiException) return 'Request failed (${error.status}). Please try again.';
+    if (error is ApiException)
+      return 'Request failed (${error.status}). Please try again.';
     if (text.contains('certificate_verify_failed') ||
         text.contains('handshakeerror') ||
         text.contains('handshake') ||
@@ -206,31 +223,35 @@ class ApiService {
     return fallback;
   }
 
-  static Future<dynamic> get(String path) async {
+  static Future<dynamic> _send(String method, String path,
+      {Map<String, dynamic>? body}) async {
     try {
       final uri = _uri(path);
 
-      _logRequest('GET', uri);
+      _logRequest(method, uri, logBody: body != null);
 
       if (uri.scheme != 'https') {
-        throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
+        throw FriendlyException(
+            'Unable to connect to the server. Please check your internet connection.');
       }
 
-      final response = await http
-          .get(
-            uri,
-            headers: await _headers(),
-          )
-          .timeout(const Duration(seconds: 30));
+      final request = http.Request(method, uri)
+        ..headers.addAll(await _headers());
+      if (body != null) request.body = jsonEncode(body);
+      final response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(_timeout);
 
-      _logResponse('GET', uri, response.statusCode, response.body);
+      _logResponse(method, uri, response.statusCode, response.body);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
           response.statusCode,
           response.body,
-          isCloudflare: response.headers['server']?.toLowerCase() == 'cloudflare' ||
-              response.body.toLowerCase().contains('cloudflare'),
+          isCloudflare:
+              response.headers['server']?.toLowerCase() == 'cloudflare' ||
+                  response.body.toLowerCase().contains('cloudflare'),
         );
       }
 
@@ -238,17 +259,31 @@ class ApiService {
         return {};
       }
 
+      final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+      final trimmed = response.body.trimLeft();
+      if (contentType.contains('text/html') ||
+          trimmed.startsWith('<!doctype') ||
+          trimmed.startsWith('<html')) {
+        throw FriendlyException(
+            'The store server returned a web page instead of API data. Please try again later.');
+      }
+
       final decoded = jsonDecode(response.body);
       return decoded is Map || decoded is List ? decoded : <String, dynamic>{};
     } on HandshakeException catch (_) {
-      if (kDebugMode) debugPrint('API handshake failure for GET ${_uri(path)}');
-      throw FriendlyException('Secure connection with the store server failed. Please try again later.');
+      if (kDebugMode)
+        debugPrint('API handshake failure for $method ${_uri(path)}');
+      throw FriendlyException(
+          'Secure connection with the store server failed. Please try again later.');
     } on SocketException {
-      throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
+      throw FriendlyException(
+          'Unable to connect to the server. Please check your internet connection.');
     } on TimeoutException {
-      throw FriendlyException('The server is taking too long to respond. Please try again.');
+      throw FriendlyException(
+          'The server is taking too long to respond. Please try again.');
     } on FormatException {
-      throw FriendlyException('Something went wrong. Please try again.');
+      throw FriendlyException(
+          'The server returned invalid data. Please try again later.');
     } on FriendlyException {
       rethrow;
     } on ApiException {
@@ -257,62 +292,21 @@ class ApiService {
       throw FriendlyException(_mapNetworkError(error));
     }
   }
+
+  static Future<dynamic> get(String path) => _send('GET', path);
 
   static Future<dynamic> post(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    try {
-      final uri = _uri(path);
+  ) =>
+      _send('POST', path, body: body);
 
-      _logRequest('POST', uri, logBody: true);
-
-      if (uri.scheme != 'https') {
-        throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
-      }
-
-      final response = await http
-          .post(
-            uri,
-            headers: await _headers(),
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      _logResponse('POST', uri, response.statusCode, response.body);
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw ApiException(
-          response.statusCode,
-          response.body,
-          isCloudflare: response.headers['server']?.toLowerCase() == 'cloudflare' ||
-              response.body.toLowerCase().contains('cloudflare'),
-        );
-      }
-
-      if (response.body.trim().isEmpty) {
-        return {};
-      }
-
-      final decoded = jsonDecode(response.body);
-      return decoded is Map || decoded is List ? decoded : <String, dynamic>{};
-    } on HandshakeException catch (_) {
-      if (kDebugMode) debugPrint('API handshake failure for POST ${_uri(path)}');
-      throw FriendlyException('Secure connection with the store server failed. Please try again later.');
-    } on SocketException {
-      throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
-    } on TimeoutException {
-      throw FriendlyException('The server is taking too long to respond. Please try again.');
-    } on FormatException {
-      throw FriendlyException('Something went wrong. Please try again.');
-    } on FriendlyException {
-      rethrow;
-    } on ApiException {
-      rethrow;
-    } catch (error) {
-      throw FriendlyException(_mapNetworkError(error));
-    }
-  }
+  static Future<dynamic> put(String path, Map<String, dynamic> body) =>
+      _send('PUT', path, body: body);
+  static Future<dynamic> patch(String path, Map<String, dynamic> body) =>
+      _send('PATCH', path, body: body);
+  static Future<dynamic> delete(String path, {Map<String, dynamic>? body}) =>
+      _send('DELETE', path, body: body);
 
   static List<dynamic> _list(dynamic data, String key) {
     if (data is List) {
@@ -320,7 +314,14 @@ class ApiService {
     }
 
     if (data is Map) {
-      final candidateKeys = [key, 'items', 'products', 'categories', 'banners', 'data'];
+      final candidateKeys = [
+        key,
+        'items',
+        'products',
+        'categories',
+        'banners',
+        'data'
+      ];
       for (final candidate in candidateKeys) {
         if (data[candidate] is List) {
           return data[candidate] as List;
@@ -329,7 +330,13 @@ class ApiService {
 
       if (data['data'] is Map) {
         final innerData = data['data'] as Map;
-        for (final candidate in [key, 'items', 'products', 'categories', 'banners']) {
+        for (final candidate in [
+          key,
+          'items',
+          'products',
+          'categories',
+          'banners'
+        ]) {
           if (innerData[candidate] is List) {
             return innerData[candidate] as List;
           }
@@ -346,7 +353,8 @@ class ApiService {
     return const [];
   }
 
-  static Future<List<Product>> products({String search = '', int? categoryId}) async {
+  static Future<List<Product>> products(
+      {String search = '', int? categoryId}) async {
     final qp = <String, String>{};
     if (search.trim().isNotEmpty) {
       qp['search'] = search.trim();
@@ -360,43 +368,46 @@ class ApiService {
         : '?${qp.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
 
     final data = await get('/products$query');
-    return _list(data, 'products')
-        .map((e) {
-          final item = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
-          return Product.fromJson(_normalizeRecord(item, ['image_url', 'image', 'featured_image']));
-        })
-        .toList();
+    return _list(data, 'products').map((e) {
+      final item =
+          e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+      return Product.fromJson(
+          _normalizeRecord(item, ['image_url', 'image', 'featured_image']));
+    }).toList();
   }
 
   static Future<List<StoreBanner>> banners() async {
     final data = await get('/banners');
-    return _list(data, 'banners')
-        .map((e) {
-          final item = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
-          return StoreBanner.fromJson(_normalizeRecord(item, ['image_url', 'image']));
-        })
-        .toList();
+    return _list(data, 'banners').map((e) {
+      final item =
+          e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+      return StoreBanner.fromJson(
+          _normalizeRecord(item, ['image_url', 'image']));
+    }).toList();
   }
 
   static Future<List<StoreCategory>> categories() async {
     final data = await get('/categories');
-    return _list(data, 'categories')
-        .map((e) {
-          final item = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
-          return StoreCategory.fromJson(_normalizeRecord(item, ['image_url', 'image']));
-        })
-        .toList();
+    return _list(data, 'categories').map((e) {
+      final item =
+          e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+      return StoreCategory.fromJson(
+          _normalizeRecord(item, ['image_url', 'image']));
+    }).toList();
   }
 
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+  static Future<Map<String, dynamic>> login(
+      String email, String password) async {
     final path = AppConfig.loginPath ?? '/auth/login';
     final data = await post(path, {'email': email, 'password': password});
     return Map<String, dynamic>.from(data);
   }
 
-  static Future<Map<String, dynamic>> register(String name, String email, String password) async {
+  static Future<Map<String, dynamic>> register(
+      String name, String email, String password) async {
     final path = AppConfig.registerPath ?? '/auth/register';
-    final data = await post(path, {'name': name, 'email': email, 'password': password});
+    final data =
+        await post(path, {'name': name, 'email': email, 'password': password});
     return Map<String, dynamic>.from(data);
   }
 
@@ -408,7 +419,8 @@ class ApiService {
 
   static Future<dynamic> wishlist() async => get('/wishlist');
 
-  static Future<Map<String, dynamic>> checkout(Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> checkout(
+      Map<String, dynamic> body) async {
     final data = await post('/checkout', body);
     return Map<String, dynamic>.from(data);
   }

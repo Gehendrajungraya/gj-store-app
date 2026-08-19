@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../screens/product_details.dart';
+import '../providers/store_state.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -10,7 +11,8 @@ class ProductCard extends StatelessWidget {
     if (url.isEmpty) {
       return Container(
         color: Colors.deepPurple.shade50,
-        child: Icon(Icons.image_not_supported_outlined, size: 50, color: Colors.deepPurple.shade200),
+        child: Icon(Icons.image_not_supported_outlined,
+            size: 50, color: Colors.deepPurple.shade200),
       );
     }
     return Image.network(
@@ -20,7 +22,8 @@ class ProductCard extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) {
         return Container(
           color: Colors.deepPurple.shade50,
-          child: Icon(Icons.broken_image_outlined, size: 50, color: Colors.deepPurple.shade200),
+          child: Icon(Icons.broken_image_outlined,
+              size: 50, color: Colors.deepPurple.shade200),
         );
       },
     );
@@ -55,25 +58,54 @@ class ProductCard extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            child: Text(
-              product.price.isEmpty ? 'View price' : 'Rs. ${product.price}',
-              style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.deepPurple),
+            child: Row(
+              children: [
+                Expanded(
+                    child: Text(
+                        product.price.isEmpty
+                            ? 'View price'
+                            : 'Rs. ${product.price}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.deepPurple))),
+                AnimatedBuilder(
+                  animation: wishlistController,
+                  builder: (context, _) => IconButton(
+                    tooltip: 'Wishlist',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => wishlistController.toggle(product),
+                    icon: Icon(
+                        wishlistController.contains(product)
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: Colors.deepPurple),
+                  ),
+                ),
+              ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(8),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ProductDetailsScreen(product: product)),
-                ),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('View Product'),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                    child: OutlinedButton(
+                        onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    ProductDetailsScreen(product: product))),
+                        child: const Text('View'))),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                    tooltip: 'Add to cart',
+                    onPressed: () {
+                      cartController.add(product);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')));
+                    },
+                    icon: const Icon(Icons.add_shopping_cart)),
+              ],
             ),
           )
         ],

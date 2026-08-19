@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
+import '../providers/store_state.dart';
 
-class ProductDetailsScreen extends StatelessWidget {
+class ProductDetailsScreen extends StatefulWidget {
   final Product product;
   const ProductDetailsScreen({super.key, required this.product});
+
+  @override
+  State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
+}
+
+class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  int quantity = 1;
+
+  Product get product => widget.product;
 
   Widget _buildImage(String url) {
     if (url.isEmpty) {
       return Container(
         color: Colors.deepPurple.shade50,
-        child: Icon(Icons.image_not_supported_outlined, size: 70, color: Colors.deepPurple.shade200),
+        child: Icon(Icons.image_not_supported_outlined,
+            size: 70, color: Colors.deepPurple.shade200),
       );
     }
     return Image.network(
@@ -18,7 +29,8 @@ class ProductDetailsScreen extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) {
         return Container(
           color: Colors.deepPurple.shade50,
-          child: Icon(Icons.broken_image_outlined, size: 70, color: Colors.deepPurple.shade200),
+          child: Icon(Icons.broken_image_outlined,
+              size: 70, color: Colors.deepPurple.shade200),
         );
       },
     );
@@ -33,9 +45,27 @@ class ProductDetailsScreen extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Expanded(child: OutlinedButton(onPressed: () {}, child: const Text('Add to Cart'))),
+              Expanded(
+                  child: OutlinedButton.icon(
+                      onPressed: () {
+                        for (var i = 0; i < quantity; i++) {
+                          cartController.add(product);
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Added to cart')));
+                      },
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Add to Cart'))),
               const SizedBox(width: 10),
-              Expanded(child: FilledButton(onPressed: () {}, child: const Text('Buy Now'))),
+              Expanded(
+                  child: FilledButton(
+                      onPressed: () {
+                        for (var i = 0; i < quantity; i++) {
+                          cartController.add(product);
+                        }
+                        Navigator.pushNamed(context, '/cart');
+                      },
+                      child: const Text('Buy Now'))),
             ],
           ),
         ),
@@ -53,19 +83,59 @@ class ProductDetailsScreen extends StatelessWidget {
               children: [
                 Text(
                   product.name,
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                      fontSize: 26, fontWeight: FontWeight.w900),
                 ),
                 if (product.version.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     'Version: ${product.version}',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500),
                   ),
                 ],
                 const SizedBox(height: 8),
-                Text(
-                  product.price.isEmpty ? 'Free / Contact us' : 'Rs. ${product.price}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                Row(
+                  children: [
+                    const Text('Quantity',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                        onPressed: quantity > 1
+                            ? () => setState(() => quantity--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline)),
+                    Text('$quantity',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    IconButton(
+                        onPressed: () => setState(() => quantity++),
+                        icon: const Icon(Icons.add_circle_outline)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      product.price.isEmpty
+                          ? 'Free / Contact us'
+                          : 'Rs. ${product.price}',
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                        onPressed: () => wishlistController.toggle(product),
+                        icon: AnimatedBuilder(
+                            animation: wishlistController,
+                            builder: (_, __) => Icon(
+                                wishlistController.contains(product)
+                                    ? Icons.favorite
+                                    : Icons.favorite_border))),
+                  ],
                 ),
                 const Divider(height: 30),
                 const Text(
@@ -74,7 +144,9 @@ class ProductDetailsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  product.description.isEmpty ? 'No description available.' : product.description,
+                  product.description.isEmpty
+                      ? 'No description available.'
+                      : product.description,
                   style: const TextStyle(height: 1.5, fontSize: 15),
                 ),
               ],
