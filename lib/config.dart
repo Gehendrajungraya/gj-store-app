@@ -1,6 +1,6 @@
 class AppConfig {
   static const String baseUrl = 'https://gehendrajung.com.np';
-  static const String apiBase = '$baseUrl/wp-json/gjps/v1';
+  static const String apiBase = '$baseUrl/wp-json/gj/v1';
   static const String appName = 'GJ Store';
 
   // There is no verified WordPress auth endpoint exposed for this site.

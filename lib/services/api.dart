@@ -37,6 +37,31 @@ class ApiException implements Exception {
 }
 
 class ApiService {
+  static void _logRequest(String method, Uri uri, {bool logBody = false}) {
+    debugPrint('API $method $uri');
+    if (logBody) {
+      debugPrint('API $method request body: [not logged for security reasons]');
+    }
+  }
+
+  static void _logResponse(String method, Uri uri, int statusCode, String body) {
+    debugPrint('API $method $uri -> $statusCode');
+
+    if (uri.path.contains('/auth/') || uri.path.contains('/login') || uri.path.contains('/register')) {
+      debugPrint('API $method auth response: [redacted to avoid logging credentials or tokens]');
+      return;
+    }
+
+    final preview = body.trim();
+    if (preview.isEmpty) {
+      debugPrint('API $method response body: <empty>');
+      return;
+    }
+
+    final safeBody = preview.length > 1200 ? '${preview.substring(0, 1200)}... (truncated)' : preview;
+    debugPrint('API $method response body: $safeBody');
+  }
+
   static Future<Map<String, String>> _headers() async {
     final headers = <String, String>{
       'Accept': 'application/json',
@@ -144,12 +169,17 @@ class ApiService {
 
     if (error is FriendlyException) return error.message;
     if (error is ApiException) return 'Request failed (${error.status}). Please try again.';
+    if (text.contains('certificate_verify_failed') ||
+        text.contains('handshakeerror') ||
+        text.contains('handshake') ||
+        text.contains('unable to get local issuer certificate')) {
+      return 'Secure connection with the store server failed. Please try again later.';
+    }
     if (text.contains('socketexception') ||
         text.contains('failed host lookup') ||
         text.contains('clientexception') ||
         text.contains('connection reset') ||
-        text.contains('tls') ||
-        text.contains('handshake')) {
+        text.contains('tls')) {
       return 'Unable to connect to the server. Please check your internet connection.';
     }
     if (text.contains('timeout')) {
@@ -173,6 +203,8 @@ class ApiService {
     try {
       final uri = _uri(path);
 
+      _logRequest('GET', uri);
+
       if (uri.scheme != 'https') {
         throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
       }
@@ -183,6 +215,8 @@ class ApiService {
             headers: await _headers(),
           )
           .timeout(const Duration(seconds: 30));
+
+      _logResponse('GET', uri, response.statusCode, response.body);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
@@ -196,6 +230,9 @@ class ApiService {
       }
 
       return jsonDecode(response.body);
+    } on HandshakeException catch (_) {
+      debugPrint('API handshake failure for GET ${_uri(path)}');
+      throw FriendlyException('Secure connection with the store server failed. Please try again later.');
     } on SocketException {
       throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
     } on TimeoutException {
@@ -218,6 +255,8 @@ class ApiService {
     try {
       final uri = _uri(path);
 
+      _logRequest('POST', uri, logBody: true);
+
       if (uri.scheme != 'https') {
         throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
       }
@@ -229,6 +268,8 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 30));
+
+      _logResponse('POST', uri, response.statusCode, response.body);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
@@ -242,6 +283,9 @@ class ApiService {
       }
 
       return jsonDecode(response.body);
+    } on HandshakeException catch (_) {
+      debugPrint('API handshake failure for POST ${_uri(path)}');
+      throw FriendlyException('Secure connection with the store server failed. Please try again later.');
     } on SocketException {
       throw FriendlyException('Unable to connect to the server. Please check your internet connection.');
     } on TimeoutException {
